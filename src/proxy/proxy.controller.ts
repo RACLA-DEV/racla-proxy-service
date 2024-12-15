@@ -5,8 +5,8 @@ import { catchError, map } from 'rxjs/operators';
 import { Observable, of } from 'rxjs';
 import { AxiosResponse } from 'axios';
 
-@Controller('app-proxy')
-export class AppProxyController {
+@Controller()
+export class ProxyController {
   private readonly allowedDomains = ['https://v-archive.net'];
 
   constructor(private readonly httpService: HttpService) {}
