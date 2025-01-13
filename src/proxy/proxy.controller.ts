@@ -7,7 +7,7 @@ import { AxiosResponse } from 'axios';
 
 @Controller()
 export class ProxyController {
-  private readonly allowedDomains = ['https://v-archive.net'];
+  private readonly allowedDomains = ['https://v-archive.net', 'https://hard-archive.com'];
 
   constructor(private readonly httpService: HttpService) {}
 
