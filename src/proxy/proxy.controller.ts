@@ -60,14 +60,30 @@ export class ProxyController {
     }
 
     try {
-      // URL 검증
-      const parsedUrl = new URL(url);
-      if (!this.allowedDomains.includes(parsedUrl.origin)) {
-        res
-          .status(HttpStatus.FORBIDDEN)
-          .json({ error: 'Access to this domain is not allowed' });
+      // URL 디코딩 및 파싱
+      const decodedUrl = decodeURIComponent(url);
+      const parsedUrl = new URL(decodedUrl);
+
+      // URL 검증 로직 개선
+      const baseUrl = parsedUrl.origin;
+      if (!this.allowedDomains.includes(baseUrl)) {
+        res.status(HttpStatus.FORBIDDEN).json({
+          error: 'Access to this domain is not allowed',
+          allowedDomains: this.allowedDomains,
+          requestedDomain: baseUrl,
+        });
         return;
       }
+
+      // 전체 URL 경로와 쿼리 파라미터 보존
+      const targetUrl = decodedUrl;
+
+      console.log(`[${new Date().toISOString()}] Parsed URL:`, {
+        original: url,
+        decoded: decodedUrl,
+        baseUrl,
+        fullPath: targetUrl,
+      });
 
       // 헤더 필터링 및 수정
       const filteredHeaders = {
@@ -88,14 +104,14 @@ export class ProxyController {
 
       // 요청 로그 개선
       console.log(
-        `[${new Date().toISOString()}] Proxying ${method} to: ${url}`,
+        `[${new Date().toISOString()}] Proxying ${method} to: ${targetUrl}`,
       );
       console.debug('Request details:', { headers: filteredHeaders, body });
 
       const request$ =
         method === 'POST'
-          ? this.httpService.post(url, body, axiosConfig)
-          : this.httpService.get(url, axiosConfig);
+          ? this.httpService.post(targetUrl, body, axiosConfig)
+          : this.httpService.get(targetUrl, axiosConfig);
 
       request$
         .pipe(
@@ -112,7 +128,7 @@ export class ProxyController {
           catchError((error) => {
             // 상세한 에러 로깅
             console.error(
-              `[${new Date().toISOString()}] Proxy error to ${url}:`,
+              `[${new Date().toISOString()}] Proxy error to ${targetUrl}:`,
               {
                 error: error.message,
                 stack: error.stack,
@@ -137,7 +153,7 @@ export class ProxyController {
               status: statusCode,
               ...errorMessage,
               debug: {
-                proxiedUrl: url,
+                proxiedUrl: targetUrl,
                 allowedDomains: this.allowedDomains,
               },
             };
