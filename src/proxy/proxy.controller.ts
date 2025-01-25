@@ -53,7 +53,6 @@ export class ProxyController {
     res: Response,
   ): void {
     try {
-      // body에서 url을 가져오거나, query parameter에서 가져옴
       const targetUrl = body?.url || url;
 
       if (!targetUrl) {
@@ -66,6 +65,11 @@ export class ProxyController {
       // URL 디코딩
       const decodedUrl = decodeURIComponent(targetUrl);
       const parsedUrl = new URL(decodedUrl);
+
+      // hardArchive 도메인일 경우 끝의 슬래시 제거
+      if (parsedUrl.hostname.includes('hard-archive.com')) {
+        parsedUrl.pathname = parsedUrl.pathname.replace(/\/+$/, '');
+      }
 
       // POST 요청이고 queryString이 있는 경우에만 URL 수정
       if (method === 'POST' && body?.queryString) {
@@ -81,12 +85,15 @@ export class ProxyController {
         // body에서 url과 queryString 제거
         const { url: _, queryString: __, ...restBody } = body;
         body = restBody;
-
-        console.log('URL modified with queryString from body:', parsedUrl.href);
-      } else {
-        // 기존 방식: URL을 그대로 사용
-        console.log('Using original URL:', parsedUrl.href);
       }
+
+      console.log('Request details:', {
+        originalUrl: targetUrl,
+        decodedUrl,
+        parsedUrl: parsedUrl.href,
+        queryString: body?.queryString,
+        finalUrl: parsedUrl.href,
+      });
 
       // URL 검증
       const baseUrl = parsedUrl.origin;
