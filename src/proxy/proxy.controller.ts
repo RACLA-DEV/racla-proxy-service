@@ -52,21 +52,23 @@ export class ProxyController {
     headers: any,
     res: Response,
   ): void {
-    if (!url) {
-      res
-        .status(HttpStatus.BAD_REQUEST)
-        .json({ error: 'Missing URL parameter' });
-      return;
-    }
-
     try {
+      // body에서 url을 가져오거나, query parameter에서 가져옴
+      const targetUrl = body?.url || url;
+
+      if (!targetUrl) {
+        res
+          .status(HttpStatus.BAD_REQUEST)
+          .json({ error: 'Missing URL parameter' });
+        return;
+      }
+
       // URL 디코딩
-      const decodedUrl = decodeURIComponent(url);
+      const decodedUrl = decodeURIComponent(targetUrl);
       const parsedUrl = new URL(decodedUrl);
 
       // POST 요청이고 queryString이 있는 경우에만 URL 수정
       if (method === 'POST' && body?.queryString) {
-        // 기존 쿼리 파라미터 유지하면서 새로운 쿼리 추가
         const searchParams = new URLSearchParams(parsedUrl.search);
         const newParams = new URLSearchParams(body.queryString);
 
@@ -74,11 +76,10 @@ export class ProxyController {
           searchParams.set(key, value);
         });
 
-        // URL 재구성
         parsedUrl.search = searchParams.toString();
 
-        // body에서 queryString 제거
-        const { queryString: _, ...restBody } = body;
+        // body에서 url과 queryString 제거
+        const { url: _, queryString: __, ...restBody } = body;
         body = restBody;
 
         console.log('URL modified with queryString from body:', parsedUrl.href);
@@ -111,8 +112,6 @@ export class ProxyController {
         headers: filteredHeaders,
         validateStatus: () => true,
       };
-
-      const targetUrl = parsedUrl.href;
 
       // 요청 로그 개선
       console.log(
