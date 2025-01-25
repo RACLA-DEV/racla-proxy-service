@@ -60,11 +60,34 @@ export class ProxyController {
     }
 
     try {
-      // URL 디코딩 및 파싱
+      // URL 디코딩
       const decodedUrl = decodeURIComponent(url);
       const parsedUrl = new URL(decodedUrl);
 
-      // URL 검증 로직 개선
+      // POST 요청이고 queryString이 있는 경우에만 URL 수정
+      if (method === 'POST' && body?.queryString) {
+        // 기존 쿼리 파라미터 유지하면서 새로운 쿼리 추가
+        const searchParams = new URLSearchParams(parsedUrl.search);
+        const newParams = new URLSearchParams(body.queryString);
+
+        newParams.forEach((value, key) => {
+          searchParams.set(key, value);
+        });
+
+        // URL 재구성
+        parsedUrl.search = searchParams.toString();
+
+        // body에서 queryString 제거
+        const { queryString: _, ...restBody } = body;
+        body = restBody;
+
+        console.log('URL modified with queryString from body:', parsedUrl.href);
+      } else {
+        // 기존 방식: URL을 그대로 사용
+        console.log('Using original URL:', parsedUrl.href);
+      }
+
+      // URL 검증
       const baseUrl = parsedUrl.origin;
       if (!this.allowedDomains.includes(baseUrl)) {
         res.status(HttpStatus.FORBIDDEN).json({
@@ -75,32 +98,21 @@ export class ProxyController {
         return;
       }
 
-      // 전체 URL 경로와 쿼리 파라미터 보존
-      const targetUrl = decodedUrl;
-
-      console.log(`[${new Date().toISOString()}] Parsed URL:`, {
-        original: url,
-        decoded: decodedUrl,
-        baseUrl,
-        fullPath: targetUrl,
-      });
-
-      // 헤더 필터링 및 수정
       const filteredHeaders = {
         ...headers,
-        // 민감한 헤더 제거
-        host: parsedUrl.hostname, // 타겟 호스트로 동적 설정
-        origin: parsedUrl.origin, // 오리진 설정
-        referer: `${parsedUrl.origin}/`, // 레퍼러 설정
-        // 불필요한 헤더 제거
+        host: parsedUrl.hostname,
+        origin: parsedUrl.origin,
+        referer: `${parsedUrl.origin}/`,
         'content-length': undefined,
         'accept-encoding': undefined,
       };
 
       const axiosConfig = {
         headers: filteredHeaders,
-        validateStatus: () => true, // 모든 상태 코드를 정상으로 처리
+        validateStatus: () => true,
       };
+
+      const targetUrl = parsedUrl.href;
 
       // 요청 로그 개선
       console.log(
