@@ -62,37 +62,37 @@ export class ProxyController {
         return;
       }
 
-      // URL 디코딩
-      const decodedUrl = decodeURIComponent(targetUrl);
+      // URL 디코딩 및 정규화
+      const decodedUrl = decodeURIComponent(targetUrl).trim();
       const parsedUrl = new URL(decodedUrl);
 
-      // hardArchive 도메인일 경우 끝의 슬래시 제거
+      // hard-archive.com 도메인 처리
       if (parsedUrl.hostname.includes('hard-archive.com')) {
-        parsedUrl.pathname = parsedUrl.pathname.replace(/\/+$/, '');
+        parsedUrl.pathname = parsedUrl.pathname
+          .replace(/\/+/g, '/')
+          .replace(/\/+$/, '');
       }
 
-      // POST 요청이고 queryString이 있는 경우에만 URL 수정
-      if (method === 'POST' && body?.queryString) {
-        const searchParams = new URLSearchParams(parsedUrl.search);
+      // queryString이 있는 경우 처리 (GET 요청으로 변환)
+      if (body?.queryString) {
+        parsedUrl.search = '';
         const newParams = new URLSearchParams(body.queryString);
-
-        newParams.forEach((value, key) => {
-          searchParams.set(key, value);
-        });
-
-        parsedUrl.search = searchParams.toString();
+        parsedUrl.search = newParams.toString();
 
         // body에서 url과 queryString 제거
         const { url: _, queryString: __, ...restBody } = body;
         body = restBody;
+
+        // queryString이 있는 경우는 무조건 GET 요청으로 처리
+        method = 'GET';
       }
 
-      console.log('Request details:', {
-        originalUrl: targetUrl,
-        decodedUrl,
-        parsedUrl: parsedUrl.href,
-        queryString: body?.queryString,
-        finalUrl: parsedUrl.href,
+      const finalUrl = parsedUrl.href;
+
+      console.log('URL Processing:', {
+        method,
+        url: finalUrl,
+        body: body,
       });
 
       // URL 검증
@@ -122,14 +122,15 @@ export class ProxyController {
 
       // 요청 로그 개선
       console.log(
-        `[${new Date().toISOString()}] Proxying ${method} to: ${targetUrl}`,
+        `[${new Date().toISOString()}] Proxying ${method} to: ${finalUrl}`,
       );
       console.debug('Request details:', { headers: filteredHeaders, body });
 
+      // queryString이 있으면 무조건 GET 요청으로 처리
       const request$ =
-        method === 'POST'
-          ? this.httpService.post(targetUrl, body, axiosConfig)
-          : this.httpService.get(targetUrl, axiosConfig);
+        method === 'GET' || body?.queryString
+          ? this.httpService.get(finalUrl, axiosConfig)
+          : this.httpService.post(finalUrl, body, axiosConfig);
 
       request$
         .pipe(
@@ -146,7 +147,7 @@ export class ProxyController {
           catchError((error) => {
             // 상세한 에러 로깅
             console.error(
-              `[${new Date().toISOString()}] Proxy error to ${targetUrl}:`,
+              `[${new Date().toISOString()}] Proxy error to ${finalUrl}:`,
               {
                 error: error.message,
                 stack: error.stack,
@@ -171,7 +172,7 @@ export class ProxyController {
               status: statusCode,
               ...errorMessage,
               debug: {
-                proxiedUrl: targetUrl,
+                proxiedUrl: finalUrl,
                 allowedDomains: this.allowedDomains,
               },
             };
